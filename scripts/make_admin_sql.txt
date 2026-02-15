@@ -1,0 +1,5 @@
+-- Belirli bir e-posta adresine sahip kullanıcıyı ADMIN yapmak için bu SQL komutunu kullanabilirsiniz:
+
+UPDATE users 
+SET user_type = 'ADMIN' 
+WHERE email = 'admin@elektrikci.com'; -- Burayı hedef e-posta ile değiştirin

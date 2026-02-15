@@ -1,0 +1,91 @@
+{
+  "mock-user-demo-vatandas-com-CITIZEN": {
+    "passwordHash": "123456",
+    "creditBalance": 0,
+    "experienceYears": 0,
+    "specialties": [],
+    "fullName": "Demo Vatandaş",
+    "phone": "05551234567",
+    "email": "demo@vatandas.com",
+    "isVerified": true,
+    "isActive": true,
+    "userType": "CITIZEN"
+  },
+  "mock-user-demo-usta-com-ELECTRICIAN": {
+    "passwordHash": "123456",
+    "creditBalance": 50,
+    "experienceYears": 5,
+    "specialties": [
+      "Ev Elektrik",
+      "Pano Bakım"
+    ],
+    "fullName": "Demo Elektrikçi",
+    "phone": "05559876543",
+    "email": "demo@usta.com",
+    "isVerified": true,
+    "isActive": true,
+    "userType": "ELECTRICIAN"
+  },
+  "mock-user-demo-admin-com-ADMIN": {
+    "passwordHash": "123456",
+    "creditBalance": 9999,
+    "experienceYears": 10,
+    "specialties": [],
+    "fullName": "Sistem Yöneticisi",
+    "phone": "05550000000",
+    "email": "admin@ustalar.com",
+    "isVerified": true,
+    "isActive": true,
+    "userType": "ADMIN"
+  },
+  "cmll3sbn00000l87knqgci5ks": {
+    "id": "cmll3sbn00000l87knqgci5ks",
+    "creditBalance": 5,
+    "experienceYears": 0,
+    "specialties": [],
+    "fullName": "Test Kullanıcısı",
+    "phone": "05551234567",
+    "email": "mock@example.com",
+    "isVerified": false,
+    "isActive": true,
+    "city": "İstanbul",
+    "district": "Merkez",
+    "locations": [],
+    "completedJobsCount": 0,
+    "profileImageUrl": "https://res.cloudinary.com/da9x9kcjf/image/upload/v1771065922/avatars/avatar-cmll3sbn00000l87knqgci5ks-1771065922389.jpg",
+    "userType": "CITIZEN"
+  },
+  "cmlm6yl920002l8r409whsxi9": {
+    "id": "cmlm6yl920002l8r409whsxi9",
+    "creditBalance": 5,
+    "experienceYears": 0,
+    "specialties": [],
+    "fullName": "Test Kullanıcısı",
+    "phone": "05551234567",
+    "email": "mock@example.com",
+    "isVerified": false,
+    "isActive": true,
+    "city": "İstanbul",
+    "district": "Merkez",
+    "locations": [],
+    "completedJobsCount": 0,
+    "profileImageUrl": "https://res.cloudinary.com/da9x9kcjf/image/upload/v1771066109/avatars/avatar-cmlm6yl920002l8r409whsxi9-1771066109257.jpg",
+    "userType": "CITIZEN"
+  },
+  "cmlm7tcet000bl88wtj1ey111": {
+    "id": "cmlm7tcet000bl88wtj1ey111",
+    "creditBalance": 5,
+    "experienceYears": 0,
+    "specialties": [],
+    "fullName": "Test Kullanıcısı",
+    "phone": "05551234567",
+    "email": "mock@example.com",
+    "isVerified": false,
+    "isActive": true,
+    "city": "İstanbul",
+    "district": "Merkez",
+    "locations": [],
+    "completedJobsCount": 0,
+    "userType": "CITIZEN"
+  }
+}

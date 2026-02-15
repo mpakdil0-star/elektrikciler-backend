@@ -1,0 +1,38 @@
+[
+  {
+    "id": "doc-kvkk-v1",
+    "type": "KVKK",
+    "version": "v1.0",
+    "title": "KVKK Aydınlatma Metni",
+    "content": "Veri Sorumlusu: Mustafa Pakdil (Bireysel Geliştirici)\\n\\n1. İŞLEME AMACI: Kişisel verileriniz, 6698 sayılı KVKK kapsamında sadece platformun çalışması, usta-müşteri eşleşmesi ve güvenliğin sağlanması amacıyla işlenir.\\n2. VERİ KONUSU KİŞİLER: Uygulama kullanıcısı olan hizmet verenler (ustalar) ve hizmet alan vatandaşlar.\\n3. SORUMLULUK: Uygulama sahibi, kullanıcılar arasındaki iletişimi sağlayan teknik altyapıyı sunmaktadır. Tarafların birbirine sağladığı verilerin doğruluğundan uygulama sahibi sorumlu değildir.\\n4. HAKLARINIZ: KVKK Madde 11 uyarınca mpakdil0@gmail.com adresi üzerinden verilerinize erişme ve silme talebinde bulunabilirsiniz.",
+    "isActive": true,
+    "updatedAt": "2026-02-14T13:28:00.000Z"
+  },
+  {
+    "id": "doc-terms-v1",
+    "type": "TERMS",
+    "version": "v1.0",
+    "title": "Kullanıcı Sözleşmesi",
+    "content": "1. ARACI ROLÜ: Bu uygulama, usta ve vatandaşları bir araya getiren bir dijital pazar yeridir. Geliştirici, \"Yer Sağlayıcı\" statüsündedir.\\n2. SORUMLULUK SINIRLANDIRILMASI: İşbu platform sadece bir iletişim köprüsü olup; sunulan hizmetin kalitesi, gecikmesi, eksikliği veya taraflar arasındaki maddi/manevi hiç bir uyuşmazlıktan uygulama sahibi sorumlu tutulamaz.\\n3. SÖZLEŞME TARAFSIZLIĞI: Hizmet ilişkisi doğrudan usta ile vatandaş arasındadır. Ödeme, garanti ve iş teslimi süreçleri tamamen tarafların kendi sorumluluğundadır.\\n4. GÜVENLİK: Kullanıcılar kendi güvenliklerinden sorumludur. Uygulama sahibi, usta veya vatandaşların kimlik doğruluğunu veya geçmişini garanti etmez.",
+    "isActive": true,
+    "updatedAt": "2026-02-14T13:28:00.000Z"
+  },
+  {
+    "id": "doc-privacy-v1",
+    "type": "PRIVACY",
+    "version": "v1.0",
+    "title": "Gizlilik Politikası",
+    "content": "Gizliliğiniz bizim için önceliğimizdir. Toplanan verilerinizin korunması için endüstri standardı şifreleme yöntemleri kullanılmaktadır. Konum verileriniz sadece uygulama açıkken ve sizin izninizle, size en yakın hizmet noktalarını göstermek için işlenir. Çerezler ve yerel depolama verileri sadece oturum yönetimi için kullanılır; reklam amaçlı profil oluşturma yapılmaz.",
+    "isActive": true,
+    "updatedAt": "2026-02-10T19:37:52.670Z"
+  },
+  {
+    "id": "doc-marketing-v1",
+    "type": "MARKETING",
+    "version": "v1.0",
+    "title": "Pazarlama İletişim Onayı",
+    "content": "Bu onayı vererek, İşbitir tarafından sunulan yeni özellikler, özel teklifler, indirimli kredi paketleri ve güncellemeler hakkında tarafınıza e-posta veya anlık bildirim yoluyla ticari elektronik ileti gönderilmesini kabul etmiş olursunuz. Onayınızı Profil/Ayarlar menüsünden dilediğiniz zaman kaldırabilirsiniz.",
+    "isActive": true,
+    "updatedAt": "2026-02-10T19:37:52.670Z"
+  }
+]

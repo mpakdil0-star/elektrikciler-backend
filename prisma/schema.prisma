@@ -1,0 +1,485 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  CITIZEN
+  ELECTRICIAN
+  ADMIN
+}
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  BIDDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum BidStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  EXPIRED
+}
+
+enum UrgencyLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  LOCATION
+  SYSTEM
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum CreditTransactionType {
+  PURCHASE
+  BID_SPENT
+  REFUND
+  BONUS
+  EXPIRED
+}
+
+model User {
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  phone                 String?   @unique
+  passwordHash          String    @map("password_hash")
+  userType              UserType  @default(CITIZEN) @map("user_type")
+  fullName              String    @map("full_name")
+  city                  String?
+  profileImageUrl       String?   @map("profile_image_url")
+  isVerified            Boolean   @default(false) @map("is_verified")
+  isActive              Boolean   @default(true) @map("is_active")
+  isBanned              Boolean   @default(false) @map("is_banned")
+  banReason             String?   @map("ban_reason")
+  banUntil              DateTime? @map("ban_until")
+  lastLoginAt           DateTime? @map("last_login_at")
+  lastSeenAt            DateTime? @map("last_seen_at")
+  languagePreference    String    @default("tr") @map("language_preference")
+  notificationSettings  Json?     @default("{\"push\": true, \"email\": true, \"sms\": false}") @map("notification_settings")
+  pushToken             String?   @map("push_token")
+  acceptedLegalVersion  String?   @map("accepted_legal_version")
+  marketingAllowed      Boolean   @default(false) @map("marketing_allowed")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  electricianProfile    ElectricianProfile?
+  jobPosts              JobPost[]           @relation("CitizenJobs")
+  bids                  Bid[]
+  sentMessages          Message[]           @relation("SentMessages")
+  receivedMessages      Message[]           @relation("ReceivedMessages")
+  reviewsGiven          Review[]            @relation("ReviewsGiven")
+  reviewsReceived       Review[]            @relation("ReviewsReceived")
+  paymentsMade          Payment[]           @relation("PaymentsMade")
+  paymentsReceived      Payment[]           @relation("PaymentsReceived")
+  credits               Credit[]
+  notifications         Notification[]
+  locations             Location[]
+  supportTickets        SupportTicket[]
+  favorites             Favorite[]          @relation("UserFavorites")
+  favoritedBy           Favorite[]          @relation("FavoritedElectrician")
+  conversationsAs1      Conversation[]      @relation("Participant1")
+  conversationsAs2      Conversation[]      @relation("Participant2")
+  consents              UserConsent[]
+  blocksMade            UserBlock[]         @relation("BlocksMade")
+  blocksReceived        UserBlock[]         @relation("BlocksReceived")
+
+  @@index([email])
+  @@index([phone])
+  @@index([userType])
+  @@map("users")
+}
+
+model ElectricianProfile {
+  id                    String             @id @default(cuid())
+  userId                String             @unique @map("user_id")
+  companyName           String?            @map("company_name")
+  taxNumber             String?            @map("tax_number")
+  bio                   String?
+  experienceYears       Int                @default(0) @map("experience_years")
+  licenseNumber         String?            @map("license_number")
+  licenseVerified       Boolean            @default(false) @map("license_verified")
+  serviceAreas          Json?              @map("service_areas")
+  specialties           String[]           @default([])
+  ratingAverage         Decimal            @default(0) @db.Decimal(3, 2) @map("rating_average")
+  totalReviews          Int                @default(0) @map("total_reviews")
+  completedJobsCount    Int                @default(0) @map("completed_jobs_count")
+  hourlyRate            Decimal?           @db.Decimal(10, 2) @map("hourly_rate")
+  minimumCharge         Decimal?           @db.Decimal(10, 2) @map("minimum_charge")
+  isAvailable           Boolean            @default(true) @map("is_available")
+  availabilityHours     Json?              @map("availability_hours")
+  verificationStatus    VerificationStatus @default(PENDING) @map("verification_status")
+  verificationDocuments Json?              @map("verification_documents")
+  creditBalance         Decimal            @default(0) @db.Decimal(10, 2) @map("credit_balance")
+  responseTimeAvg       Int?               @map("response_time_avg")
+  acceptanceRate        Decimal?           @db.Decimal(5, 2) @map("acceptance_rate")
+  serviceCategory       String?            @map("service_category")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ratingAverage])
+  @@index([verificationStatus])
+  @@map("electrician_profiles")
+}
+
+model JobPost {
+  id                    String      @id @default(cuid())
+  citizenId             String      @map("citizen_id")
+  title                 String
+  description           String
+  category              String
+  subcategory           String?
+  location              Json
+  urgencyLevel          UrgencyLevel @default(MEDIUM) @map("urgency_level")
+  estimatedBudget       Decimal?    @db.Decimal(10, 2) @map("estimated_budget")
+  budgetRange           Json?       @map("budget_range")
+  preferredTime         DateTime?   @map("preferred_time")
+  status                JobStatus   @default(OPEN)
+  images                String[]    @default([])
+  videoUrl              String?     @map("video_url")
+  assignedElectricianId String?     @map("assigned_electrician_id")
+  acceptedBidId         String?     @map("accepted_bid_id")
+  viewCount             Int         @default(0) @map("view_count")
+  bidCount              Int         @default(0) @map("bid_count")
+  expiresAt             DateTime?   @map("expires_at")
+  completedAt           DateTime?   @map("completed_at")
+  cancelledAt           DateTime?   @map("cancelled_at")
+  cancellationReason    String?     @map("cancellation_reason")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
+  deletedAt             DateTime?   @map("deleted_at")
+
+  citizen               User        @relation("CitizenJobs", fields: [citizenId], references: [id], onDelete: Restrict)
+  bids                  Bid[]
+  reviews               Review[]
+  payment               Payment?
+  escrowAccount         EscrowAccount?
+  conversations         Conversation[]
+
+  @@index([citizenId])
+  @@index([status])
+  @@index([category])
+  @@index([createdAt])
+  @@index([assignedElectricianId])
+  @@map("job_posts")
+}
+
+model Bid {
+  id                 String    @id @default(cuid())
+  jobPostId          String    @map("job_post_id")
+  electricianId      String    @map("electrician_id")
+  amount             Decimal   @db.Decimal(10, 2)
+  estimatedDuration  Int       @map("estimated_duration")
+  estimatedStartDate DateTime? @map("estimated_start_date")
+  message            String
+  status             BidStatus @default(PENDING)
+  creditSpent        Decimal   @default(0) @db.Decimal(10, 2) @map("credit_spent")
+  isFeatured         Boolean   @default(false) @map("is_featured")
+  expiresAt          DateTime? @map("expires_at")
+  acceptedAt         DateTime? @map("accepted_at")
+  rejectedAt         DateTime? @map("rejected_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  jobPost            JobPost   @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+  electrician        User      @relation(fields: [electricianId], references: [id], onDelete: Restrict)
+
+  @@index([jobPostId])
+  @@index([electricianId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("bids")
+}
+
+model Conversation {
+  id                        String    @id @default(cuid())
+  jobPostId                 String?   @map("job_post_id")
+  participant1Id            String    @map("participant_1_id")
+  participant2Id            String    @map("participant_2_id")
+  lastMessageAt             DateTime? @map("last_message_at")
+  lastMessagePreview        String?   @map("last_message_preview")
+  unreadCountParticipant1   Int       @default(0) @map("unread_count_participant_1")
+  unreadCountParticipant2   Int       @default(0) @map("unread_count_participant_2")
+  isArchivedParticipant1    Boolean   @default(false) @map("is_archived_participant_1")
+  isArchivedParticipant2    Boolean   @default(false) @map("is_archived_participant_2")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  jobPost                   JobPost?  @relation(fields: [jobPostId], references: [id], onDelete: SetNull)
+  participant1              User      @relation("Participant1", fields: [participant1Id], references: [id], onDelete: Restrict)
+  participant2              User      @relation("Participant2", fields: [participant2Id], references: [id], onDelete: Restrict)
+  messages                  Message[]
+
+  @@index([participant1Id])
+  @@index([participant2Id])
+  @@index([jobPostId])
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model Message {
+  id              String      @id @default(cuid())
+  conversationId  String      @map("conversation_id")
+  senderId        String      @map("sender_id")
+  recipientId     String      @map("recipient_id")
+  content         String
+  messageType     MessageType @default(TEXT) @map("message_type")
+  mediaUrl        String?     @map("media_url")
+  fileName        String?     @map("file_name")
+  fileSize        Int?        @map("file_size")
+  isRead          Boolean     @default(false) @map("is_read")
+  readAt          DateTime?   @map("read_at")
+  isEdited        Boolean     @default(false) @map("is_edited")
+  editedAt        DateTime?   @map("edited_at")
+  isDeleted       Boolean     @default(false) @map("is_deleted")
+  deletedAt       DateTime?   @map("deleted_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender          User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Restrict)
+  recipient       User         @relation("ReceivedMessages", fields: [recipientId], references: [id], onDelete: Restrict)
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+model Review {
+  id                 String   @id @default(cuid())
+  jobPostId          String   @map("job_post_id")
+  reviewerId         String   @map("reviewer_id")
+  reviewedId         String   @map("reviewed_id")
+  rating             Int
+  ratingBreakdown    Json?    @map("rating_breakdown")
+  comment            String?
+  images             String[] @default([])
+  isVerifiedPurchase Boolean  @default(true) @map("is_verified_purchase")
+  helpfulCount       Int      @default(0) @map("helpful_count")
+  isVisible          Boolean  @default(true) @map("is_visible")
+  adminNotes         String?  @map("admin_notes")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  jobPost            JobPost  @relation(fields: [jobPostId], references: [id], onDelete: Restrict)
+  reviewer           User     @relation("ReviewsGiven", fields: [reviewerId], references: [id], onDelete: Restrict)
+  reviewed           User     @relation("ReviewsReceived", fields: [reviewedId], references: [id], onDelete: Restrict)
+
+  @@index([reviewedId])
+  @@index([rating])
+  @@index([createdAt])
+  @@map("reviews")
+}
+
+model Payment {
+  id               String        @id @default(cuid())
+  jobPostId        String        @unique @map("job_post_id")
+  payerId          String        @map("payer_id")
+  payeeId          String        @map("payee_id")
+  amount           Decimal       @db.Decimal(10, 2)
+  platformFee      Decimal       @db.Decimal(10, 2) @map("platform_fee")
+  netAmount        Decimal       @db.Decimal(10, 2) @map("net_amount")
+  paymentMethod    String        @map("payment_method")
+  paymentStatus    PaymentStatus @default(PENDING) @map("payment_status")
+  transactionId    String?       @unique @map("transaction_id")
+  paymentGateway   String?       @map("payment_gateway")
+  paymentIntentId  String?       @map("payment_intent_id")
+  metadata         Json?         @default("{}")
+  completedAt      DateTime?     @map("completed_at")
+  refundedAt       DateTime?     @map("refunded_at")
+  refundReason     String?       @map("refund_reason")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  jobPost          JobPost       @relation(fields: [jobPostId], references: [id], onDelete: Restrict)
+  payer            User          @relation("PaymentsMade", fields: [payerId], references: [id], onDelete: Restrict)
+  payee            User          @relation("PaymentsReceived", fields: [payeeId], references: [id], onDelete: Restrict)
+
+  @@index([jobPostId])
+  @@index([payerId])
+  @@index([payeeId])
+  @@index([paymentStatus])
+  @@map("payments")
+}
+
+model EscrowAccount {
+  id          String    @id @default(cuid())
+  jobPostId   String    @unique @map("job_post_id")
+  amount      Decimal   @db.Decimal(10, 2)
+  status      String    @default("pending")
+  releasedAt  DateTime? @map("released_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  jobPost     JobPost   @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+
+  @@map("escrow_accounts")
+}
+
+model Credit {
+  id              String                @id @default(cuid())
+  userId          String                @map("user_id")
+  amount          Decimal               @db.Decimal(10, 2)
+  transactionType CreditTransactionType @map("transaction_type")
+  relatedId       String?               @map("related_id")
+  description     String
+  balanceAfter    Decimal               @db.Decimal(10, 2) @map("balance_after")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([transactionType])
+  @@index([createdAt])
+  @@map("credits")
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  type        String
+  title       String
+  message     String
+  relatedType String?   @map("related_type")
+  relatedId   String?   @map("related_id")
+  actionUrl   String?   @map("action_url")
+  isRead      Boolean   @default(false) @map("is_read")
+  pushSent    Boolean   @default(false) @map("push_sent")
+  emailSent   Boolean   @default(false) @map("email_sent")
+  smsSent     Boolean   @default(false) @map("sms_sent")
+  readAt      DateTime? @map("read_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  expiresAt   DateTime? @map("expires_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model Location {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  address     String
+  city        String
+  district    String
+  neighborhood String? @default("")
+  postalCode  String?  @map("postal_code")
+  latitude    Decimal  @db.Decimal(10, 8)
+  longitude   Decimal  @db.Decimal(11, 8)
+  isDefault   Boolean  @default(false) @map("is_default")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([city])
+  @@index([district])
+  @@map("locations")
+}
+
+model SupportTicket {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  ticketType  String    @map("ticket_type")
+  subject     String
+  description String
+  status      String    @default("open")
+  priority    String    @default("medium")
+  assignedTo  String?   @map("assigned_to")
+  relatedType String?   @map("related_type")
+  relatedId   String?   @map("related_id")
+  attachments String[]  @default([])
+  resolvedAt  DateTime? @map("resolved_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([status])
+  @@index([ticketType])
+  @@index([createdAt])
+  @@map("support_tickets")
+}
+
+model Favorite {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  electricianId String   @map("electrician_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user          User     @relation("UserFavorites", fields: [userId], references: [id], onDelete: Cascade)
+  electrician   User     @relation("FavoritedElectrician", fields: [electricianId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, electricianId])
+  @@index([userId])
+  @@index([electricianId])
+  @@map("favorites")
+}
+
+model UserConsent {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  documentType     String   @map("document_type")
+  documentVersion  String   @map("document_version")
+  action           String   @default("ACCEPTED")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_consents")
+}
+
+model UserBlock {
+  id          String   @id @default(cuid())
+  blockerId   String   @map("blocker_id")
+  blockedId   String   @map("blocked_id")
+  reason      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  blocker     User     @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked     User     @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+  @@map("user_blocks")
+}

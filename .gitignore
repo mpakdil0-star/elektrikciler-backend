@@ -38,3 +38,6 @@ Thumbs.db
 # Prisma
 # /prisma/migrations
 
+
+# Secrets
+config/google-service-account.json

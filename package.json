@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "node scripts/kill-port.js && nodemon",
-    "build": "tsc",
+    "build": "npx prisma generate && tsc",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -17,6 +17,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "typescript": "^5.9.3",
     "aws-sdk": "^2.1692.0",
     "bcrypt": "^6.0.0",
     "cloudinary": "^1.41.3",
@@ -39,7 +41,6 @@
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
-    "@prisma/client": "^6.2.1",
     "@types/bcrypt": "^6.0.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/cors": "^2.8.19",
@@ -55,7 +56,6 @@
     "nodemon": "^3.1.11",
     "prettier": "^3.7.4",
     "prisma": "^6.2.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "ts-node": "^10.9.2"
   }
 }

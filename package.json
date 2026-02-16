@@ -18,6 +18,7 @@
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^6.2.1",
+    "@types/bcryptjs": "^3.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
@@ -53,7 +54,6 @@
     "eslint": "^9.39.1",
     "nodemon": "^3.1.11",
     "prettier": "^3.7.4",
-    "@types/bcryptjs": "^3.0.0",
     "prisma": "^6.2.1",
     "ts-node": "^10.9.2"
   }

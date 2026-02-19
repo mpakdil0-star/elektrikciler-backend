@@ -75,27 +75,31 @@ export const getTicketDetail = async (req: AuthRequest, res: Response, next: Nex
         if (!req.user) throw new ValidationError('Oturum açmanız gerekiyor');
 
         const { id } = req.params;
-        console.log(`🔍 GetTicketDetail request for ID: ${id}, User: ${req.user.id}`);
 
         let ticket: any;
         if (isDatabaseAvailable) {
             ticket = await prisma.supportTicket.findFirst({
                 where: {
                     id,
-                    userId: req.user.id
+                    // Allow admin to see all, user to see own
+                    ...(req.user.userType !== 'ADMIN' ? { userId: req.user.id } : {})
+                },
+                include: {
+                    user: { select: { fullName: true, email: true, phone: true, profileImageUrl: true } },
+                    messages: {
+                        orderBy: { createdAt: 'asc' },
+                        include: { sender: { select: { fullName: true, profileImageUrl: true } } }
+                    }
                 }
             });
         } else {
             const rawTicket = mockTicketStorage.getTicket(id);
 
             if (rawTicket) {
-                // Check permission: Owner or Admin
                 const isAdmin = req.user.userType === 'ADMIN';
                 if (rawTicket.userId !== req.user.id && !isAdmin) {
-                    console.warn(`⛔ Permission denied for ticket ${id}. Owner: ${rawTicket.userId}, Requestor: ${req.user.id}`);
                     ticket = null;
                 } else {
-                    // Populate user info for UI
                     const user = mockStorage.get(rawTicket.userId);
                     ticket = {
                         ...rawTicket,
@@ -103,7 +107,8 @@ export const getTicketDetail = async (req: AuthRequest, res: Response, next: Nex
                             fullName: user.fullName || 'Bilinmeyen Kullanıcı',
                             email: user.email,
                             phone: user.phone
-                        }
+                        },
+                        messages: rawTicket.messages || [] // Mock messages
                     };
                 }
             }
@@ -118,14 +123,12 @@ export const getTicketDetail = async (req: AuthRequest, res: Response, next: Nex
             data: ticket
         });
     } catch (error) {
-        console.error('❌ Error in getTicketDetail:', error);
         next(error);
     }
 };
 
 export const getAllTickets = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-        // Admin check
         if (!req.user || req.user.userType !== 'ADMIN') {
             throw new ValidationError('Bu işlem için yönetici yetkisi gereklidir');
         }
@@ -145,9 +148,7 @@ export const getAllTickets = async (req: AuthRequest, res: Response, next: NextF
                 }
             });
         } else {
-            // Mock Data
             const allTickets: any[] = mockTicketStorage.getAllTickets();
-            // Join user info manually
             tickets = allTickets.map(t => {
                 const user = mockStorage.get(t.userId);
                 return {
@@ -190,10 +191,20 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response, next: 
                 where: { id },
                 data: { status }
             });
+
+            if (replyMessage) {
+                await prisma.ticketMessage.create({
+                    data: {
+                        ticketId: id,
+                        senderId: req.user.id,
+                        message: replyMessage,
+                        isAdmin: true
+                    }
+                });
+            }
         } else {
             ticket = mockTicketStorage.updateTicket(id, { status });
 
-            // Add reply if provided
             if (replyMessage && ticket) {
                 mockTicketStorage.addMessage(id, {
                     senderId: req.user.id,
@@ -226,12 +237,29 @@ export const addTicketMessage = async (req: AuthRequest, res: Response, next: Ne
 
         if (!text) throw new ValidationError('Mesaj boş olamaz');
 
-        let ticket;
-        // Mock only for messages MVP
-        if (!isDatabaseAvailable) {
-            const isAdmin = req.user.userType === 'ADMIN';
+        let message;
+        if (isDatabaseAvailable) {
+            const ticket = await prisma.supportTicket.findUnique({ where: { id } });
+            if (!ticket) throw new ValidationError('Talep bulunamadı');
 
-            // Check permission (User own ticket or Admin)
+            // Check permission
+            if (ticket.userId !== req.user.id && req.user.userType !== 'ADMIN') {
+                throw new ValidationError('Yetkisiz işlem');
+            }
+
+            message = await prisma.ticketMessage.create({
+                data: {
+                    ticketId: id,
+                    senderId: req.user.id,
+                    message: text,
+                    isAdmin: req.user.userType === 'ADMIN'
+                },
+                include: {
+                    sender: { select: { fullName: true, profileImageUrl: true } }
+                }
+            });
+        } else {
+            const isAdmin = req.user.userType === 'ADMIN';
             const existingTicket = mockTicketStorage.getTicket(id);
             if (!existingTicket) throw new ValidationError('Talep bulunamadı');
 
@@ -239,7 +267,7 @@ export const addTicketMessage = async (req: AuthRequest, res: Response, next: Ne
                 throw new ValidationError('Yetkisiz işlem');
             }
 
-            ticket = mockTicketStorage.addMessage(id, {
+            message = mockTicketStorage.addMessage(id, {
                 senderId: req.user.id,
                 text,
                 isAdmin
@@ -249,7 +277,7 @@ export const addTicketMessage = async (req: AuthRequest, res: Response, next: Ne
         res.json({
             success: true,
             message: 'Mesaj gönderildi',
-            data: ticket
+            data: message
         });
 
     } catch (error) {

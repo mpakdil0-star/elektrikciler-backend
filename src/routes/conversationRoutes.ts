@@ -397,7 +397,8 @@ router.get('/:id/messages', async (req: AuthRequest, res: Response, next: NextFu
         }
 
         // Security Check
-        if (!store.isParticipant(id, req.user.id)) {
+        const isAdmin = req.user.userType === 'ADMIN' || req.user.id.endsWith('-ADMIN');
+        if (!isAdmin && !store.isParticipant(id, req.user.id)) {
           return res.status(403).json({
             success: false,
             error: { message: 'Bu mesajlara erişim izniniz yok' }
@@ -442,7 +443,8 @@ router.get('/:id/messages', async (req: AuthRequest, res: Response, next: NextFu
         id,
         req.user.id,
         parseInt(page as string),
-        parseInt(limit as string)
+        parseInt(limit as string),
+        req.user.userType
       );
 
       res.json({

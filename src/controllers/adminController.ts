@@ -283,36 +283,54 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
         const user = (req as any).user;
         if (user.userType !== 'ADMIN') throw new Error('Unauthorized');
 
-        // 1. Total Users
-        const allUsers = mockStorage.getAllUsers();
-        // Since getAllUsers returns an array, we can filter
-        const users = Object.values(allUsers);
-        const totalUsers = users.length;
-        const totalElectricians = users.filter((u: any) => u.userType === 'ELECTRICIAN').length;
-        const totalCitizens = users.filter((u: any) => u.userType === 'CITIZEN').length;
+        // FAST PATH: Mock results if DB down
+        if (!isDatabaseAvailable) {
+            // ... Existing Mock Logic ...
+            const allUsers = mockStorage.getAllUsers();
+            const users = Object.values(allUsers);
+            const totalUsers = users.length;
+            const totalElectricians = users.filter((u: any) => u.userType === 'ELECTRICIAN').length;
+            const totalCitizens = users.filter((u: any) => u.userType === 'CITIZEN').length;
 
-        // 2. Active Jobs
-        // Ensure jobs are loaded
-        if (jobStoreById.size === 0) loadMockJobs();
+            if (jobStoreById.size === 0) loadMockJobs();
+            let activeJobsCount = 0;
+            jobStoreById.forEach((job) => { if (job.status === 'OPEN') activeJobsCount++; });
+            const pendingCount = users.filter((u: any) => u.verificationStatus === 'PENDING').length;
 
-        // Count OPEN jobs
-        let activeJobsCount = 0;
-        jobStoreById.forEach((job) => {
-            if (job.status === 'OPEN') activeJobsCount++;
-        });
+            const transactions = mockTransactionStorage.getAllTransactions();
+            const totalRevenue = transactions.filter(t => t.transactionType === 'PURCHASE').reduce((sum, t) => sum + t.amount, 0);
 
-        // Fallback removed per user request (only show dynamic jobs)
-        // if (activeJobsCount === 0) { ... }
+            return res.json({
+                success: true,
+                data: {
+                    totalUsers,
+                    totalElectricians,
+                    totalCitizens,
+                    activeJobs: activeJobsCount,
+                    pendingVerifications: pendingCount,
+                    totalRevenue
+                }
+            });
+        }
 
-        // 3. Pending Verifications
-        const pendingCount = users.filter((u: any) => u.verificationStatus === 'PENDING').length;
+        // REAL DB STATS
+        const [
+            totalUsers,
+            totalElectricians,
+            totalCitizens,
+            activeJobs,
+            pendingVerifications,
+        ] = await Promise.all([
+            prisma.user.count(),
+            prisma.user.count({ where: { userType: 'ELECTRICIAN' } }),
+            prisma.user.count({ where: { userType: 'CITIZEN' } }),
+            prisma.jobPost.count({ where: { status: 'OPEN' } }),
+            prisma.electricianProfile.count({ where: { verificationStatus: 'PENDING' } }),
+        ]);
 
-        // 4. Total Revenue (Mock)
-        // Sum of all purchase transactions
-        const transactions = mockTransactionStorage.getAllTransactions();
-        const totalRevenue = transactions
-            .filter(t => t.transactionType === 'PURCHASE')
-            .reduce((sum, t) => sum + t.amount, 0);
+        // Revenue calculation (if you have a Transaction table, otherwise 0 or mock)
+        // const totalRevenue = await prisma.transaction.aggregate({ _sum: { amount: true } });
+        const totalRevenue = 0; // Placeholder until real transaction table matches
 
         res.json({
             success: true,
@@ -320,11 +338,12 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
                 totalUsers,
                 totalElectricians,
                 totalCitizens,
-                activeJobs: activeJobsCount,
-                pendingVerifications: pendingCount,
+                activeJobs,
+                pendingVerifications,
                 totalRevenue
             }
         });
+
     } catch (error) {
         next(error);
     }
@@ -333,7 +352,6 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
 /**
  * Get All Jobs for Administration
  * Admin ONLY
- * Supports Pagination: ?page=1&limit=20
  */
 export const getAllJobs = async (req: Request, res: Response, next: NextFunction) => {
     console.log('📋 getAllJobs called');
@@ -345,25 +363,47 @@ export const getAllJobs = async (req: Request, res: Response, next: NextFunction
         const limit = parseInt(req.query.limit as string) || 20;
         const skip = (page - 1) * limit;
 
+        if (isDatabaseAvailable) {
+            const [jobs, totalJobs] = await Promise.all([
+                prisma.jobPost.findMany({
+                    skip,
+                    take: limit,
+                    include: {
+                        citizen: {
+                            select: { fullName: true, email: true, phone: true }
+                        },
+                        _count: { select: { bids: true } }
+                    },
+                    orderBy: { createdAt: 'desc' }
+                }),
+                prisma.jobPost.count()
+            ]);
+
+            const totalPages = Math.ceil(totalJobs / limit);
+
+            // Remap citizen to user for frontend compatibility
+            const mappedJobs = jobs.map(j => ({
+                ...j,
+                user: j.citizen
+            }));
+
+            return res.json({
+                success: true,
+                data: mappedJobs,
+                pagination: {
+                    page,
+                    limit,
+                    totalJobs,
+                    totalPages,
+                    hasMore: page < totalPages
+                }
+            });
+        }
+
+        // Mock Implementation
         if (jobStoreById.size === 0) loadMockJobs();
-
-        // Convert Map to Array
         const jobs = Array.from(jobStoreById.values());
-
-        // Static mocks removed per user request (only show dynamic jobs)
-        /*
-        const staticJobs = getMockJobs().jobs;
-        staticJobs.forEach(staticJob => {
-            if (!jobStoreById.has(staticJob.id)) {
-                jobs.push(staticJob);
-            }
-        });
-        */
-
-        // Sort by newest
         jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        // Apply Pagination
         const paginatedJobs = jobs.slice(skip, skip + limit);
         const totalJobs = jobs.length;
         const totalPages = Math.ceil(totalJobs / limit);
@@ -379,6 +419,136 @@ export const getAllJobs = async (req: Request, res: Response, next: NextFunction
                 hasMore: page < totalPages
             }
         });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get All Users for Administration
+ * Admin ONLY
+ */
+export const getAllUsers = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const user = (req as any).user;
+        if (user.userType !== 'ADMIN') throw new Error('Unauthorized');
+
+        const { search, userType: filterType, page = '1', limit = '20' } = req.query;
+        const pageNum = parseInt(page as string, 10);
+        const limitNum = parseInt(limit as string, 10);
+        const skip = (pageNum - 1) * limitNum;
+
+        // DB Implementation
+        if (isDatabaseAvailable) {
+            const whereClause: any = {};
+
+            if (filterType && filterType !== 'ALL') {
+                whereClause.userType = filterType;
+            }
+
+            if (search) {
+                whereClause.OR = [
+                    { fullName: { contains: search as string, mode: 'insensitive' } },
+                    { email: { contains: search as string, mode: 'insensitive' } },
+                    { phone: { contains: search as string } }
+                ];
+            }
+
+            const [users, totalUsers] = await Promise.all([
+                prisma.user.findMany({
+                    where: whereClause,
+                    skip,
+                    take: limitNum,
+                    include: {
+                        electricianProfile: true,
+                        _count: { select: { jobPosts: true } } // Approximate completed jobs
+                    },
+                    orderBy: { createdAt: 'desc' }
+                }),
+                prisma.user.count({ where: whereClause })
+            ]);
+
+            // Transform to match frontend expectations
+            const transformedUsers = users.map(u => ({
+                id: u.id,
+                fullName: u.fullName,
+                email: u.email,
+                phone: u.phone,
+                userType: u.userType,
+                profileImageUrl: u.profileImageUrl,
+                creditBalance: u.electricianProfile?.creditBalance || 0,
+                isVerified: u.isVerified,
+                isActive: u.isActive,
+                verificationStatus: u.electricianProfile?.verificationStatus || null,
+                createdAt: u.createdAt,
+                experienceYears: u.electricianProfile?.experienceYears || 0,
+                serviceCategory: u.electricianProfile?.serviceCategory || null,
+                completedJobsCount: u.electricianProfile?.completedJobsCount || 0
+            }));
+
+            return res.json({
+                success: true,
+                data: {
+                    users: transformedUsers,
+                    pagination: {
+                        total: totalUsers,
+                        page: pageNum,
+                        limit: limitNum,
+                        totalPages: Math.ceil(totalUsers / limitNum)
+                    }
+                }
+            });
+        }
+
+        // Mock Implementation (Moved from routes)
+        const allUsers = mockStorage.getAllUsers();
+        let users = Object.entries(allUsers).map(([id, data]: [string, any]) => {
+            // ... existing mock transformation ...
+            let derivedUserType = data.userType;
+            if (!derivedUserType) {
+                if (id.endsWith('-ELECTRICIAN')) derivedUserType = 'ELECTRICIAN';
+                else if (id.endsWith('-ADMIN')) derivedUserType = 'ADMIN';
+                else derivedUserType = 'CITIZEN';
+            }
+            return {
+                id,
+                fullName: data.fullName || 'İsimsiz Kullanıcı',
+                email: data.email || '',
+                phone: data.phone || '',
+                userType: derivedUserType,
+                // ... other fields
+                ...data
+            };
+        });
+
+        if (filterType && filterType !== 'ALL') {
+            users = users.filter(u => u.userType === filterType);
+        }
+
+        if (search) {
+            const searchLower = (search as string).toLowerCase();
+            users = users.filter(u =>
+                u.fullName.toLowerCase().includes(searchLower) ||
+                u.phone.includes(searchLower) ||
+                u.email.toLowerCase().includes(searchLower)
+            );
+        }
+
+        const paginatedUsers = users.slice(skip, skip + limitNum);
+
+        res.json({
+            success: true,
+            data: {
+                users: paginatedUsers,
+                pagination: {
+                    total: users.length,
+                    page: pageNum,
+                    limit: limitNum,
+                    totalPages: Math.ceil(users.length / limitNum)
+                }
+            }
+        });
+
     } catch (error) {
         next(error);
     }

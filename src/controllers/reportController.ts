@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import prisma, { isDatabaseAvailable } from '../config/database';
 import { mockReportStorage, mockStorage } from '../utils/mockStorage';
 import { AuthRequest } from '../middleware/auth';
 
@@ -21,7 +22,43 @@ export const createReport = async (req: AuthRequest, res: Response, next: NextFu
             return res.status(400).json({ success: false, message: 'Kendinizi şikayet edemezsiniz' });
         }
 
-        // Check for duplicate report (same reporter, reported, and pending)
+        if (isDatabaseAvailable) {
+            // Check for duplicate report
+            const existingReport = await prisma.report.findFirst({
+                where: {
+                    reporterId,
+                    reportedId,
+                    status: 'PENDING'
+                }
+            });
+
+            if (existingReport) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Bu kullanıcı için bekleyen bir şikayetiniz zaten var'
+                });
+            }
+
+            const report = await prisma.report.create({
+                data: {
+                    reporterId,
+                    reportedId,
+                    jobId,
+                    reason,
+                    description,
+                    evidence: evidence || [],
+                    status: 'PENDING'
+                }
+            });
+
+            return res.status(201).json({
+                success: true,
+                message: 'Şikayetiniz başarıyla gönderildi. En kısa sürede incelenecektir.',
+                data: report
+            });
+        }
+
+        // Mock Fallback
         const existingReport = mockReportStorage.findFirst({
             reporterId,
             reportedId,
@@ -64,6 +101,22 @@ export const getMyReports = async (req: AuthRequest, res: Response, next: NextFu
             return res.status(401).json({ success: false, message: 'Giriş yapmanız gerekiyor' });
         }
 
+        if (isDatabaseAvailable) {
+            const reports = await prisma.report.findMany({
+                where: { reporterId: userId },
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    reported: {
+                        select: { fullName: true, id: true }
+                    },
+                    job: {
+                        select: { title: true, id: true }
+                    }
+                }
+            });
+            return res.json({ success: true, data: reports });
+        }
+
         const reports = mockReportStorage.findMany({ reporterId: userId });
 
         return res.json({ success: true, data: reports });
@@ -77,6 +130,50 @@ export const getAllReports = async (req: Request, res: Response, next: NextFunct
     try {
         const { status, page = 1, limit = 20 } = req.query;
 
+        if (isDatabaseAvailable) {
+            const where: any = {};
+            if (status) {
+                where.status = status;
+            }
+
+            const pageNum = Number(page);
+            const limitNum = Number(limit);
+            const skip = (pageNum - 1) * limitNum;
+
+            const [reports, total] = await Promise.all([
+                prisma.report.findMany({
+                    where,
+                    skip,
+                    take: limitNum,
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        reporter: {
+                            select: { fullName: true, email: true, phone: true }
+                        },
+                        reported: {
+                            select: { fullName: true, email: true, phone: true }
+                        },
+                        job: {
+                            select: { title: true }
+                        }
+                    }
+                }),
+                prisma.report.count({ where })
+            ]);
+
+            return res.json({
+                success: true,
+                data: reports,
+                pagination: {
+                    page: pageNum,
+                    limit: limitNum,
+                    total,
+                    pages: Math.ceil(total / limitNum)
+                }
+            });
+        }
+
+        // Mock Fallback
         const where: any = {};
         if (status) {
             where.status = status as ReportStatus;
@@ -108,6 +205,37 @@ export const updateReportStatus = async (req: AuthRequest, res: Response, next: 
         const { status, adminNotes, banUser, banUntil } = req.body;
         const adminId = req.user?.id;
 
+        if (isDatabaseAvailable) {
+            const report = await prisma.report.update({
+                where: { id },
+                data: {
+                    status,
+                    adminNotes,
+                    resolvedAt: ['RESOLVED', 'DISMISSED'].includes(status) ? new Date() : null,
+                    resolvedBy: ['RESOLVED', 'DISMISSED'].includes(status) ? adminId : null
+                }
+            });
+
+            // If resolved against the reported user, optionally ban them
+            if (status === 'RESOLVED' && banUser) {
+                await prisma.user.update({
+                    where: { id: report.reportedId },
+                    data: {
+                        isBanned: true,
+                        banReason: `Report #${report.id}: ${adminNotes || 'No reason provided'}`,
+                        banUntil: banUntil ? new Date(banUntil) : null
+                    }
+                });
+            }
+
+            return res.json({
+                success: true,
+                message: 'Şikayet durumu güncellendi',
+                data: report
+            });
+        }
+
+        // Mock Fallback
         const report = mockReportStorage.update(id, {
             status: status as ReportStatus,
             adminNotes,
@@ -119,10 +247,9 @@ export const updateReportStatus = async (req: AuthRequest, res: Response, next: 
             return res.status(404).json({ success: false, message: 'Şikayet bulunamadı' });
         }
 
-        // If resolved against the reported user, optionally ban them
         if (status === 'RESOLVED' && banUser) {
             mockStorage.updateProfile(report.reportedId, {
-                isActive: false
+                isActive: false // Mock only supports isActive
             });
         }
 

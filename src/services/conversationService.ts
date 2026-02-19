@@ -273,17 +273,25 @@ export const conversationService = {
     /**
      * Konuşma mesajlarını getir
      */
-    async getMessages(conversationId: string, userId: string, page = 1, limit = 50) {
+    async getMessages(conversationId: string, userId: string, page = 1, limit = 50, userType?: string) {
         // Erişim kontrolü
-        const conversation = await prisma.conversation.findFirst({
-            where: {
-                id: conversationId,
-                OR: [
-                    { participant1Id: userId },
-                    { participant2Id: userId },
-                ],
-            },
-        });
+        let conversation;
+
+        if (userType === 'ADMIN') {
+            conversation = await prisma.conversation.findUnique({
+                where: { id: conversationId }
+            });
+        } else {
+            conversation = await prisma.conversation.findFirst({
+                where: {
+                    id: conversationId,
+                    OR: [
+                        { participant1Id: userId },
+                        { participant2Id: userId },
+                    ],
+                },
+            });
+        }
 
         if (!conversation) {
             throw new AppError('Konuşma bulunamadı veya erişim reddedildi', 404);

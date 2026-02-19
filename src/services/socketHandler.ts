@@ -88,6 +88,19 @@ export const initializeSocketServer = (httpServer: HttpServer): SocketServer => 
                     return;
                 }
 
+                if (socket.userType === 'ADMIN') {
+                    // Admins can join any conversation
+                    const conversation = await prisma.conversation.findUnique({
+                        where: { id: conversationId }
+                    });
+
+                    if (conversation) {
+                        socket.join(`conversation:${conversationId}`);
+                        console.log(`📝 ADMIN ${userId} joined conversation ${conversationId}`);
+                        return;
+                    }
+                }
+
                 // Kullanıcının bu konuşmaya erişimi olup olmadığını kontrol et
                 const conversation = await prisma.conversation.findFirst({
                     where: {

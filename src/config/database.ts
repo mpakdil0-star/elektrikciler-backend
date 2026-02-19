@@ -28,21 +28,39 @@ export let isDatabaseAvailable = false;
 
 // Test database connection at startup (async, non-blocking)
 // Server başlatılmasını engellemez
-const initDatabase = async () => {
+const connectWithRetry = async (retryCount = 0) => {
+  const retryLimit = 20;
+  const retryInterval = 5000; // 5 saniye
+
   try {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL not defined');
+    }
+
+    logger.info(`🔄 Database connection attempt ${retryCount + 1}/${retryLimit}...`);
     await prisma.$connect();
     isDatabaseAvailable = true;
     logger.info('✅ Database connected successfully');
   } catch (error: any) {
-    isDatabaseAvailable = false;
-    logger.info('⚠️  Database URL not found or connection failed.');
-    logger.info('✅ Switching to MOCK STORAGE MODE (In-Memory). This is normal for local dev.');
-    // logger.warn('   Please configure DATABASE_URL in .env file');
+    if (!process.env.DATABASE_URL) {
+      isDatabaseAvailable = false;
+      logger.info('⚠️  DATABASE_URL missing. Switching to MOCK STORAGE MODE.');
+      return;
+    }
+
+    if (retryCount < retryLimit) {
+      logger.warn(`⚠️ Database connection failed. Retrying in ${retryInterval / 1000}s...`);
+      setTimeout(() => connectWithRetry(retryCount + 1), retryInterval);
+    } else {
+      isDatabaseAvailable = false;
+      logger.error('❌ Database connection failed after maximum retries.');
+      logger.info('⚠️ Switching to MOCK STORAGE MODE as fallback.');
+    }
   }
 };
 
-// Start connection test after 500ms (non-blocking)
-setTimeout(initDatabase, 500);
+// Start connection logic
+setTimeout(() => connectWithRetry(), 500);
 
 // Graceful shutdown
 process.on('beforeExit', async () => {

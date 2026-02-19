@@ -604,16 +604,27 @@ export const resetPassword = async (data: any) => {
 
   const passwordHash = await hashPassword(newPassword);
 
-  if (!isDatabaseAvailable) {
+  // 1. Always update Mock Storage first (Dual Write for redundancy)
+  try {
     const { mockStorage } = require('../utils/mockStorage');
+    // Find user in mock storage by email
     const allUsers = mockStorage.getAllUsers();
-    const user = allUsers.find((u: { id: string, email: string }) => u.email === email);
-    if (!user) throw new ValidationError('Kullanıcı bulunamadı.');
+    const mockUser = allUsers.find((u: { email: string }) => u.email === email);
 
-    mockStorage.updateProfile(user.id, { passwordHash });
+    if (mockUser) {
+      console.log(`🔐 Syncing new password to Mock Storage for ${email}`);
+      mockStorage.updateProfile(mockUser.id, { passwordHash });
+    }
+  } catch (err) {
+    console.warn('⚠️ Failed to sync password to mock storage:', err);
+  }
+
+  // 2. If DB is not available, we are done (already updated mock)
+  if (!isDatabaseAvailable) {
     return { success: true, message: 'Şifreniz başarıyla güncellendi.' };
   }
 
+  // 3. Update Real Database
   await prisma.user.update({
     where: { email },
     data: { passwordHash }

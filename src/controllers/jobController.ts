@@ -674,9 +674,28 @@ export const getMyJobsController = async (
 
     // 1. Try real database first if available and not a mock user
     if (isDatabaseAvailable && !userId.startsWith('mock-')) {
+      console.log(`🔍 [getMyJobs] Fetching for User: ${userId}, Type: ${userType}`);
       try {
-        jobs = await jobService.getMyJobs(userId, userType);
-        return res.json({ success: true, data: { jobs } });
+        const dbJobs = await jobService.getMyJobs(userId, userType);
+
+        console.log(`🔍 [getMyJobs] DB returned: ${dbJobs.length} jobs`);
+
+        // Also check if there are any in-memory/mock jobs for this user (created when DB was down)
+        const mockJobs = userJobsStore.get(userId) || [];
+        console.log(`🔍 [getMyJobs] Mock/Memory returned: ${mockJobs.length} jobs`);
+
+        // Merge and deduplicate by ID
+        const allJobs = [...dbJobs, ...mockJobs];
+        const uniqueJobs = allJobs.filter((job, index, self) =>
+          index === self.findIndex((j) => j.id === job.id)
+        );
+
+        console.log(`🔍 [getMyJobs] Final Unique Jobs: ${uniqueJobs.length}`);
+
+        // Sort by date desc
+        uniqueJobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        return res.json({ success: true, data: { jobs: uniqueJobs } });
       } catch (dbError) {
         console.warn('⚠️ Database fetch failed in getMyJobsController, falling back to memory store');
       }

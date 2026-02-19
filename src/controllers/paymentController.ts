@@ -8,10 +8,10 @@ import { payStoreService } from '../services/payStoreService';
 export const getCreditPackages = async (req: AuthRequest, res: Response) => {
     // Sabit kredi paketleri
     const packages = [
-        { id: 'pkg-10', name: 'Hızlı Başlangıç', credits: 10, price: 189, color: '#3B82F6' },
-        { id: 'pkg-35', name: 'Gelişim Paketi', credits: 35, price: 489, color: '#94A3B8' },
-        { id: 'pkg-75', name: 'Eko-Avantaj', credits: 75, price: 889, color: '#F59E0B', isPopular: true },
-        { id: 'pkg-175', name: 'Usta Paketi', credits: 175, price: 1489, color: '#8B5CF6' },
+        { id: 'pkg_10', name: 'Hızlı Başlangıç', credits: 10, price: 189, color: '#3B82F6' },
+        { id: 'pkg_35', name: 'Gelişim Paketi', credits: 35, price: 489, color: '#94A3B8' },
+        { id: 'pkg_75', name: 'Eko-Avantaj', credits: 75, price: 889, color: '#F59E0B', isPopular: true },
+        { id: 'pkg_175', name: 'Usta Paketi', credits: 175, price: 1489, color: '#8B5CF6' },
     ];
 
     res.json({ success: true, data: packages });
@@ -25,10 +25,10 @@ export const purchaseCredits = async (req: AuthRequest, res: Response, next: Nex
         if (!packageId) throw new ValidationError('Paket seçimi yapılmadı');
 
         const packages: any = {
-            'pkg-10': { credits: 10, price: 189 },
-            'pkg-35': { credits: 35, price: 489 },
-            'pkg-75': { credits: 75, price: 889 },
-            'pkg-175': { credits: 175, price: 1489 },
+            'pkg_10': { credits: 10, price: 189 },
+            'pkg_35': { credits: 35, price: 489 },
+            'pkg_75': { credits: 75, price: 889 },
+            'pkg_175': { credits: 175, price: 1489 },
         };
 
         const selectedPackage = packages[packageId];

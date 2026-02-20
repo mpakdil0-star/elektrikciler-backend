@@ -41,12 +41,12 @@ class PayStoreService {
      */
     async verifyPurchase(productId: string, purchaseToken: string, packageName: string = 'com.isbitir.app') {
         try {
-            if (!this.androidPublisher) {
-                await this.init();
-                if (!this.androidPublisher) throw new Error('Google API not initialized');
-            }
-
             console.log(`🔍 Verifying purchase: ${productId}, Token: ${purchaseToken.substring(0, 10)}...`);
+
+            if (!this.androidPublisher) {
+                console.log('[payStoreService] androidPublisher not init, trying now...');
+                await this.init();
+            }
 
             const response = await this.androidPublisher.purchases.products.get({
                 packageName,
@@ -54,6 +54,7 @@ class PayStoreService {
                 token: purchaseToken,
             });
 
+            console.log('[payStoreService] Raw Google Response received');
             const { purchaseState, consumptionState } = response.data;
 
             // purchaseState: 0 (Purchased), 1 (Canceled), 2 (Pending)

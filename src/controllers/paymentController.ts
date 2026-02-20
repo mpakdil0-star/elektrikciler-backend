@@ -69,51 +69,56 @@ export const purchaseCredits = async (req: AuthRequest, res: Response, next: Nex
         // --- BALANCE UPDATE PROCESS ---
         if (isDatabaseAvailable) {
             const userId = req.user.id;
+            console.log(`[PURCHASE] Start database update for user: ${userId}`);
 
-            // 1. Get current balance
-            const profile = await prisma.electricianProfile.findUnique({
-                where: { userId }
-            });
+            try {
+                // 1. Get current balance
+                const profile = await prisma.electricianProfile.findUnique({
+                    where: { userId }
+                });
 
-            if (!profile) throw new NotFoundError('Usta profili bulunamadı');
+                if (!profile) throw new NotFoundError('Usta profili bulunamadı');
 
-            const currentBalance = Number(profile.creditBalance || 0);
-            const newBalance = currentBalance + selectedPackage.credits;
+                const currentBalance = Number(profile.creditBalance || 0);
+                const creditsToAdd = Number(selectedPackage.credits);
+                const newBalance = currentBalance + creditsToAdd;
 
-            // 2. Update Balance
-            await prisma.electricianProfile.update({
-                where: { userId },
-                data: { creditBalance: newBalance }
-            });
+                console.log(`[PURCHASE] Current: ${currentBalance}, Adding: ${creditsToAdd}, New: ${newBalance}`);
 
-            // 3. Create credit log
-            await prisma.credit.create({
-                data: {
-                    userId,
-                    amount: selectedPackage.credits,
-                    transactionType: 'PURCHASE',
-                    description: `${selectedPackage.credits} Kredi Yüklendi${purchaseToken ? '' : ' (Test)'}`,
-                    relatedId: purchaseToken || `mock-tx-${Date.now()}`,
-                    balanceAfter: newBalance
-                }
-            });
+                // 2. Update Balance
+                await prisma.electricianProfile.update({
+                    where: { userId },
+                    data: { creditBalance: newBalance.toString() }
+                });
 
-            // 4. Create payment record - NOT FOR CREDIT RECHARGES
-            // Note: Payment model has a @unique constraint on jobPostId and a 1-to-1 relation with JobPost.
-            // Since this is a standalone credit purchase (no JobPost), we skip Payment record creation 
-            // to avoid unique constraint violations on empty strings.
-            // The transaction is already logged in the Credit table.
+                console.log(`[PURCHASE] Profile updated`);
 
-            console.log(`💰 Credit recharge complete. Added ${selectedPackage.credits} to user ${userId}. New Balance: ${newBalance}`);
+                // 3. Create credit log
+                await prisma.credit.create({
+                    data: {
+                        userId,
+                        amount: creditsToAdd.toString(),
+                        transactionType: 'PURCHASE',
+                        description: `${creditsToAdd} Kredi Yüklendi${purchaseToken ? '' : ' (Test)'}`,
+                        relatedId: purchaseToken || `mock-tx-${Date.now()}`,
+                        balanceAfter: newBalance.toString()
+                    }
+                });
 
-            return res.json({
-                success: true,
-                message: 'Ödeme başarılı! Kredileriniz hesabınıza tanımlandı.',
-                data: {
-                    creditsAdded: selectedPackage.credits,
-                    newBalance
-                }
-            });
+                console.log(`[PURCHASE] Credit log created`);
+
+                return res.json({
+                    success: true,
+                    message: 'Ödeme başarılı! Kredileriniz hesabınıza tanımlandı.',
+                    data: {
+                        creditsAdded: creditsToAdd,
+                        newBalance
+                    }
+                });
+            } catch (dbError: any) {
+                console.error(`[PURCHASE] Database Operation ERROR:`, dbError);
+                throw dbError;
+            }
         } else {
             // --- MOCK STORAGE FALLBACK ---
             const userId = req.user.id;

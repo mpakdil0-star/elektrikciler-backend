@@ -47,9 +47,11 @@ export const purchaseCredits = async (req: AuthRequest, res: Response, next: Nex
             }
 
             // 2. Verify with Google Play API
+            console.log(`🔍 Verifying with Google Play for package: ${packageId}...`);
             const verification = await payStoreService.verifyPurchase(packageId, purchaseToken);
 
             if (!verification.isValid) {
+                console.error('❌ Google verification FAILED:', verification.error);
                 return res.status(400).json({
                     success: false,
                     message: verification.message,
@@ -96,22 +98,13 @@ export const purchaseCredits = async (req: AuthRequest, res: Response, next: Nex
                 }
             });
 
-            // 4. Create payment record
-            await prisma.payment.create({
-                data: {
-                    jobPostId: '',
-                    payerId: userId,
-                    payeeId: 'SYSTEM',
-                    amount: selectedPackage.price,
-                    platformFee: 0,
-                    netAmount: selectedPackage.price,
-                    paymentMethod: purchaseToken ? 'GOOGLE_PLAY_IAP' : 'CREDIT_CARD_MOCK',
-                    paymentStatus: 'COMPLETED',
-                    transactionId: purchaseToken || `mock-tx-${Date.now()}`,
-                    completedAt: new Date(),
-                    metadata: purchaseToken ? { packageId } : { mock: true }
-                }
-            }).catch(e => console.warn('Payment record failed:', e.message));
+            // 4. Create payment record - NOT FOR CREDIT RECHARGES
+            // Note: Payment model has a @unique constraint on jobPostId and a 1-to-1 relation with JobPost.
+            // Since this is a standalone credit purchase (no JobPost), we skip Payment record creation 
+            // to avoid unique constraint violations on empty strings.
+            // The transaction is already logged in the Credit table.
+
+            console.log(`💰 Credit recharge complete. Added ${selectedPackage.credits} to user ${userId}. New Balance: ${newBalance}`);
 
             return res.json({
                 success: true,

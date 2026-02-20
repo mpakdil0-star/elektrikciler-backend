@@ -40,10 +40,10 @@ export const purchaseCredits = async (req: AuthRequest, res: Response, next: Nex
 
             // 1. Double-spending check (Database only)
             if (isDatabaseAvailable) {
-                const existingPayment = await prisma.payment.findUnique({
-                    where: { transactionId: purchaseToken }
+                const existingCredit = await prisma.credit.findFirst({
+                    where: { relatedId: purchaseToken }
                 });
-                if (existingPayment) throw new ValidationError('Bu satın alma zaten işlenmiş.');
+                if (existingCredit) throw new ValidationError('Bu satın alma zaten işlenmiş.');
             }
 
             // 2. Verify with Google Play API

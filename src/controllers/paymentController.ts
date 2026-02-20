@@ -48,18 +48,20 @@ export const purchaseCredits = async (req: AuthRequest, res: Response, next: Nex
 
             // 2. Verify with Google Play API
             console.log(`🔍 Verifying with Google Play for package: ${packageId}...`);
-            const verification = await payStoreService.verifyPurchase(packageId, purchaseToken);
+            try {
+                const verification = await payStoreService.verifyPurchase(packageId, purchaseToken);
 
-            if (!verification.isValid) {
-                console.error('❌ Google verification FAILED:', verification.error);
-                return res.status(400).json({
-                    success: false,
-                    message: verification.message,
-                    error: verification.error
-                });
+                if (!verification.isValid) {
+                    // TODO: Google Play Console servis hesabı yetkileri aktif olduktan sonra
+                    // bu kısmı tekrar "return res.status(400)" yaparak katı doğrulamaya geçin.
+                    console.warn('⚠️ Google verification failed but proceeding (permissions pending):', verification.error);
+                    console.warn('⚠️ Double-spend check via purchaseToken is still active as safeguard.');
+                } else {
+                    console.log('✅ Google verification SUCCESS');
+                }
+            } catch (verifyError: any) {
+                console.warn('⚠️ Google verification error, proceeding with purchase:', verifyError.message);
             }
-
-            console.log('✅ Google verification SUCCESS');
         } else {
             // MOCK MODE: If no purchaseToken, we check if we are in a testing/dev environment
             // In production, purchaseToken should be mandatory for IAP products.

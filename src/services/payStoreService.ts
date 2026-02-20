@@ -14,13 +14,26 @@ class PayStoreService {
 
     private async init() {
         try {
-            if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
-                console.warn('⚠️ Google Service Account JSON not found at:', SERVICE_ACCOUNT_PATH);
+            let credentials;
+
+            // 1. Try Environment Variable (Best for Render)
+            if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+                console.log('✅ Using Google credentials from environment variable');
+                credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+            }
+            // 2. Try Local File (Best for Dev)
+            else if (fs.existsSync(SERVICE_ACCOUNT_PATH)) {
+                console.log('✅ Using Google credentials from file:', SERVICE_ACCOUNT_PATH);
+                const fileContent = fs.readFileSync(SERVICE_ACCOUNT_PATH, 'utf8');
+                credentials = JSON.parse(fileContent);
+            }
+            else {
+                console.warn('⚠️ Google Service Account NOT found in ENV or FILE');
                 return;
             }
 
             const auth = new google.auth.GoogleAuth({
-                keyFile: SERVICE_ACCOUNT_PATH,
+                credentials,
                 scopes: ['https://www.googleapis.com/auth/androidpublisher'],
             });
 
@@ -46,6 +59,15 @@ class PayStoreService {
             if (!this.androidPublisher) {
                 console.log('[payStoreService] androidPublisher not init, trying now...');
                 await this.init();
+            }
+
+            if (!this.androidPublisher) {
+                console.error('❌ Google Android Publisher not initialized. Check credentials.');
+                return {
+                    isValid: false,
+                    message: 'Google doğrulama servisi şu an devre dışı. Lütfen teknik ekibe bildirin.',
+                    error: 'Google API not initialized'
+                };
             }
 
             const response = await this.androidPublisher.purchases.products.get({

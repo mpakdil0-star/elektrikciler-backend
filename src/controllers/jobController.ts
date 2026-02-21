@@ -532,7 +532,7 @@ export const getJobsController = async (
   try {
     const {
       status, category, city, district, districts, lat, lng, radius,
-      page = '1', limit = '20',
+      page = '1', limit = '20', serviceCategory,
     } = req.query;
 
     const isGuest = !req.user;
@@ -547,9 +547,19 @@ export const getJobsController = async (
       }
     }
 
+    // Map serviceCategory to category keywords for database filtering
+    const SERVICE_CATEGORY_KEYWORDS: Record<string, string[]> = {
+      'elektrik': ['elektrik', 'aydınlatma', 'priz', 'sigorta', 'topraklama', 'kablo', 'pano'],
+      'cilingir': ['çilingir', 'cilingir', 'kilit', 'anahtar', 'kapı açma', 'barel'],
+      'klima': ['klima', 'iklimlendirme', 'soğutma'],
+      'beyaz-esya': ['beyaz eşya', 'çamaşır', 'bulaşık', 'buzdolabı', 'fırın', 'kurutma'],
+      'tesisat': ['tesisat', 'su', 'sıhhi', 'tıkanıklık', 'musluk', 'boru', 'kaçak'],
+    };
+
     const filters = {
       status: status as any,
       category: category as string | undefined,
+      serviceCategory: serviceCategory as string | undefined,
       city: city as string | undefined,
       district: district as string | undefined,
       districts: parsedDistricts,
@@ -562,6 +572,17 @@ export const getJobsController = async (
 
     try {
       let result = await jobService.getJobs(filters);
+
+      // Filter by serviceCategory if provided (maps electrician's category to relevant jobs)
+      const sc = serviceCategory as string | undefined;
+      if (sc && SERVICE_CATEGORY_KEYWORDS[sc] && result.jobs) {
+        const keywords = SERVICE_CATEGORY_KEYWORDS[sc];
+        result.jobs = result.jobs.filter((job: any) => {
+          const jobCategory = (job.category || '').toLowerCase();
+          const jobTitle = (job.title || '').toLowerCase();
+          return keywords.some((kw: string) => jobCategory.includes(kw) || jobTitle.includes(kw));
+        });
+      }
 
       if (isGuest && result.jobs) {
         result.jobs = result.jobs.map((job: any) => maskJobData(job));

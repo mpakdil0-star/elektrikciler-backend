@@ -253,17 +253,20 @@ router.post('/promote', async (req: Request, res: Response) => {
             return res.status(403).json({ success: false, message: 'Yetkisiz işlem' });
         }
 
-        const prisma = require('../config/database').default;
+        const { PrismaClient } = require('@prisma/client');
+        const prismaAdmin = new PrismaClient();
 
-        const user = await prisma.user.update({
+        const user = await prismaAdmin.user.update({
             where: { email },
             data: { userType: 'ADMIN' }
         });
 
+        await prismaAdmin.$disconnect();
+
         console.log(`✅ User ${email} promoted to ADMIN`);
         return res.json({ success: true, message: `${email} artık admin!`, userId: user.id });
     } catch (error: any) {
-        console.error('Admin promote error:', error);
+        console.error('Admin promote error:', error.message);
         return res.status(500).json({ success: false, message: error.message });
     }
 });

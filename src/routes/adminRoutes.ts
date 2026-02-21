@@ -243,4 +243,29 @@ router.get('/jobs', authenticate, adminMiddleware, adminController.getAllJobs);
 // DELETE /admin/jobs/:id - Force delete a job
 router.delete('/jobs/:id', authenticate, adminMiddleware, adminController.deleteJob);
 
+// POST /admin/promote - One-time admin promotion (secret endpoint)
+router.post('/promote', async (req: Request, res: Response) => {
+    try {
+        const { email, secret } = req.body;
+
+        // Security: Only works with the correct secret and specific email
+        if (secret !== 'isbitir-admin-2026' || email !== 'mpakdi0@gmail.com') {
+            return res.status(403).json({ success: false, message: 'Yetkisiz işlem' });
+        }
+
+        const prisma = require('../config/database').default;
+
+        const user = await prisma.user.update({
+            where: { email },
+            data: { userType: 'ADMIN' }
+        });
+
+        console.log(`✅ User ${email} promoted to ADMIN`);
+        return res.json({ success: true, message: `${email} artık admin!`, userId: user.id });
+    } catch (error: any) {
+        console.error('Admin promote error:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 export default router;

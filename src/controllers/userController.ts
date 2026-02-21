@@ -212,6 +212,9 @@ export const uploadAvatarBase64 = async (req: Request, res: Response, next: Next
                     profileImageUrl: fileUrl,
                     updatedAt: new Date(),
                 },
+                include: {
+                    electricianProfile: true,
+                },
             });
             console.log('Database updated');
         } catch (dbError: any) {
@@ -276,6 +279,9 @@ export const removeAvatar = async (req: Request, res: Response, next: NextFuncti
                 data: {
                     profileImageUrl: null,
                     updatedAt: new Date(),
+                },
+                include: {
+                    electricianProfile: true,
                 },
             });
             console.log('Database updated, avatar removed');

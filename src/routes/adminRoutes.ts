@@ -249,7 +249,7 @@ router.post('/promote', async (req: Request, res: Response) => {
         const { email, secret } = req.body;
 
         // Security: Only works with the correct secret and specific email
-        if (secret !== 'isbitir-admin-2026' || email !== 'mpakdi0@gmail.com') {
+        if (secret !== 'isbitir-admin-2026' || email !== 'mpakdil0@gmail.com') {
             return res.status(403).json({ success: false, message: 'Yetkisiz işlem' });
         }
 

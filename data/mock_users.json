@@ -86,6 +86,7 @@
     "district": "Merkez",
     "locations": [],
     "completedJobsCount": 0,
-    "userType": "CITIZEN"
+    "userType": "CITIZEN",
+    "profileImageUrl": "https://res.cloudinary.com/da9x9kcjf/image/upload/v1771720139/avatars/avatar-cmlm7tcet000bl88wtj1ey111-1771720138952.jpg"
   }
 }

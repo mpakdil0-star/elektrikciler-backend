@@ -11,11 +11,13 @@ type ReportReason = 'FRAUD' | 'HARASSMENT' | 'NO_SHOW' | 'UNPROFESSIONAL' | 'FAK
 export const createReport = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const reporterId = req.user?.id;
-        const { reportedId, jobId, reason, description, evidence } = req.body;
+        const { reportedId, jobId, reason, description, evidence } = (req as any).body;
 
         if (!reporterId) {
             return res.status(401).json({ success: false, message: 'Giriş yapmanız gerekiyor' });
         }
+
+        console.log(`🚩 [REPORTS] createReport: ${reporterId} reporting ${reportedId}`);
 
         // Can't report yourself
         if (reporterId === reportedId) {
@@ -128,6 +130,7 @@ export const getMyReports = async (req: AuthRequest, res: Response, next: NextFu
 // ADMIN: Get all reports
 export const getAllReports = async (req: Request, res: Response, next: NextFunction) => {
     try {
+        console.log('🚩 [REPORTS] getAllReports called', { query: req.query });
         const { status, page = 1, limit = 20 } = req.query;
 
         if (isDatabaseAvailable) {
@@ -193,7 +196,8 @@ export const getAllReports = async (req: Request, res: Response, next: NextFunct
                 pages: Math.ceil(total / Number(limit))
             }
         });
-    } catch (error) {
+    } catch (error: any) {
+        console.error('❌ [REPORTS] getAllReports failed:', error);
         next(error);
     }
 };
@@ -201,9 +205,11 @@ export const getAllReports = async (req: Request, res: Response, next: NextFunct
 // ADMIN: Update report status
 export const updateReportStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-        const { id } = req.params;
-        const { status, adminNotes, banUser, banUntil } = req.body;
+        const { id } = (req as any).params;
+        const { status, adminNotes, banUser, banUntil } = (req as any).body;
         const adminId = req.user?.id;
+
+        console.log(`🚩 [REPORTS] updateReportStatus: ${id} -> ${status}`);
 
         if (isDatabaseAvailable) {
             const report = await prisma.report.update({

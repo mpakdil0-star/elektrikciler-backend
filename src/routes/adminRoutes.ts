@@ -8,7 +8,6 @@ const router = Router();
 // Middleware: Check if user is admin
 const adminMiddleware = (req: Request, res: Response, next: any) => {
     const user = (req as any).user;
-    // Allow if userType is ADMIN or if email indicates admin (for testing)
     if (!user || (user.userType !== 'ADMIN' && !user.email.startsWith('admin'))) {
         return res.status(403).json({
             success: false,
@@ -19,292 +18,117 @@ const adminMiddleware = (req: Request, res: Response, next: any) => {
 };
 
 // GET /admin/users - Get all users
-router.get('/users', authenticate, adminMiddleware, adminController.getAllUsers);
-
-// GET /admin/users/:id - Get single user details
-router.get('/users/:id', authenticate, adminMiddleware, async (req: Request, res: Response) => {
+router.get('/users', authenticate, adminMiddleware, async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
-        const userData = mockStorage.get(id);
-
-        if (!userData) {
-            return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
-        }
-
-        res.json({
-            success: true,
-            data: {
-                ...userData
-            }
-        });
-    } catch (error) {
-        console.error('Admin get user error:', error);
-        res.status(500).json({ success: false, message: 'Kullanıcı bilgileri yüklenirken hata oluştu' });
-    }
-});
-
-// PUT /admin/users/:id - Update user (suspend, add credits, etc.)
-router.put('/users/:id', authenticate, adminMiddleware, async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        const { isActive, creditBalance, isVerified } = req.body;
-
-        const userData = mockStorage.get(id);
-        if (!userData) {
-            return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
-        }
-
-        const updates: any = {};
-
-        if (isActive !== undefined) {
-            updates.isActive = isActive;
-        }
-
-        if (creditBalance !== undefined) {
-            updates.creditBalance = creditBalance;
-            mockStorage.updateBalance(id, creditBalance);
-        }
-
-        if (isVerified !== undefined) {
-            updates.isVerified = isVerified;
-        }
-
-        if (Object.keys(updates).length > 0) {
-            mockStorage.updateProfile(id, updates);
-        }
-
-        res.json({
-            success: true,
-            message: 'Kullanıcı güncellendi',
-            data: { id, ...updates }
-        });
-    } catch (error) {
-        console.error('Admin update user error:', error);
-        res.status(500).json({ success: false, message: 'Kullanıcı güncellenirken hata oluştu' });
-    }
-});
-
-// GET /admin/stats - Get comprehensive platform statistics
-router.get('/stats', authenticate, adminMiddleware, async (req: Request, res: Response) => {
-    try {
+        const { search, userType, page = 1, limit = 20 } = req.query;
         const allUsers = getAllMockUsers();
 
-        // Process users with derived userType from ID
-        const usersWithType = Object.entries(allUsers).map(([id, data]: [string, any]) => {
-            let userType = data.userType;
-            if (!userType) {
-                if (id.endsWith('-ELECTRICIAN')) {
-                    userType = 'ELECTRICIAN';
-                } else if (id.endsWith('-ADMIN')) {
-                    userType = 'ADMIN';
-                } else {
-                    userType = 'CITIZEN';
-                }
+        let usersList = Object.entries(allUsers).map(([id, data]: [string, any]) => {
+            let uType = data.userType;
+            if (!uType) {
+                if (id.endsWith('-ELECTRICIAN')) uType = 'ELECTRICIAN';
+                else if (id.endsWith('-ADMIN')) uType = 'ADMIN';
+                else uType = 'CITIZEN';
             }
-            return { ...data, id, userType };
+            return { ...data, id, userType: uType };
         });
 
-        // Filter by user types
-        const citizens = usersWithType.filter((u: any) => u.userType === 'CITIZEN');
-        const electricians = usersWithType.filter((u: any) => u.userType === 'ELECTRICIAN');
+        // Filter ADMINs out for security
+        usersList = usersList.filter(u => u.userType !== 'ADMIN');
 
-        // Service category breakdown
-        const serviceCategories = {
-            elektrik: electricians.filter((u: any) => u.serviceCategory === 'elektrik' || !u.serviceCategory).length,
-            cilingir: electricians.filter((u: any) => u.serviceCategory === 'cilingir').length,
-            klima: electricians.filter((u: any) => u.serviceCategory === 'klima').length,
-            'beyaz-esya': electricians.filter((u: any) => u.serviceCategory === 'beyaz-esya').length,
-            tesisat: electricians.filter((u: any) => u.serviceCategory === 'tesisat').length
-        };
-
-        // Regional distribution - count by city from locations
-        const regionStats: { [city: string]: { electricians: number; citizens: number } } = {};
-
-        usersWithType.forEach((user: any) => {
-            const locations = user.locations || [];
-            const city = locations[0]?.city || user.city || 'Belirtilmemiş';
-
-            if (!regionStats[city]) {
-                regionStats[city] = { electricians: 0, citizens: 0 };
-            }
-
-            if (user.userType === 'ELECTRICIAN') {
-                regionStats[city].electricians++;
-            } else if (user.userType === 'CITIZEN') {
-                regionStats[city].citizens++;
-            }
-        });
-
-        // Convert to sorted array (top cities first)
-        const topRegions = Object.entries(regionStats)
-            .map(([city, counts]) => ({
-                city,
-                electricians: counts.electricians,
-                citizens: counts.citizens,
-                total: counts.electricians + counts.citizens
-            }))
-            .sort((a, b) => b.total - a.total)
-            .slice(0, 10); // Top 10 cities
-
-        // Load job and bid stats from mock storage
-        let jobStats = { total: 0, open: 0, completed: 0, cancelled: 0 };
-        let bidStats = { total: 0, accepted: 0 };
-        let totalCredits = 0;
-
-        try {
-            // Get bids from mock storage file
-            const fs = require('fs');
-            const path = require('path');
-            const bidsFile = path.join(process.cwd(), 'data', 'mock-bids.json');
-            if (fs.existsSync(bidsFile)) {
-                const bidsData = JSON.parse(fs.readFileSync(bidsFile, 'utf8'));
-                // Handle both array and object formats
-                const bids = Array.isArray(bidsData) ? bidsData : Object.values(bidsData);
-                bidStats.total = bids.length;
-                bidStats.accepted = bids.filter((b: any) => b.status === 'ACCEPTED').length;
-            }
-        } catch (e) {
-            // Bids file not available
-            console.error('Error reading bids file:', e);
+        // Search filter
+        if (search) {
+            const s = (search as string).toLowerCase();
+            usersList = usersList.filter(u =>
+                u.fullName.toLowerCase().includes(s) ||
+                u.email.toLowerCase().includes(s) ||
+                (u.phone && u.phone.includes(s))
+            );
         }
 
-        try {
-            // Get jobs from mock storage file
-            const fs = require('fs');
-            const path = require('path');
-            const jobsFile = path.join(process.cwd(), 'data', 'mock-jobs.json');
-            if (fs.existsSync(jobsFile)) {
-                const jobsData = JSON.parse(fs.readFileSync(jobsFile, 'utf8'));
-                // Handle both array and object formats
-                const jobs = Array.isArray(jobsData) ? jobsData : Object.values(jobsData);
-                jobStats.total = jobs.length;
-                jobStats.open = jobs.filter((j: any) => j.status === 'OPEN' || j.status === 'BIDDING').length;
-                jobStats.completed = jobs.filter((j: any) => j.status === 'COMPLETED').length;
-                jobStats.cancelled = jobs.filter((j: any) => j.status === 'CANCELLED').length;
-            }
-        } catch (e) {
-            // Jobs file not available
-            console.error('Error reading jobs file:', e);
+        // Type filter
+        if (userType && userType !== 'ALL') {
+            usersList = usersList.filter(u => u.userType === userType);
         }
 
-        // Calculate total credits in platform
-        electricians.forEach((u: any) => {
-            totalCredits += Number(u.creditBalance) || 0;
-        });
-
-        const mapped = dbUsers.map((u: any) => {
-            // Determine pushEnabled - more robust check
-            let isPushEnabled = true; // default
+        // MAPPING: Ensure pushStatus is always calculated even for mock data
+        const mapped = usersList.map(u => {
+            let isPushEnabled = true;
             if (u.notificationSettings && typeof u.notificationSettings === 'object') {
-                const settings = u.notificationSettings as any;
-                if (settings.pushEnabled === false) {
-                    isPushEnabled = false;
-                }
+                if (u.notificationSettings.pushEnabled === false) isPushEnabled = false;
             }
 
-            // Determine final status
             let calculatedPushStatus = 'DISABLED';
             if (isPushEnabled) {
                 calculatedPushStatus = u.pushToken ? 'ACTIVE' : 'PENDING';
             }
 
-            console.log(`User: ${u.fullName}, Token: ${!!u.pushToken}, Enabled: ${isPushEnabled}, Result: ${calculatedPushStatus}`);
-
             return {
-                id: u.id,
-                fullName: u.fullName,
-                email: u.email,
-                phone: u.phone || '',
-                userType: u.userType,
-                profileImageUrl: u.profileImageUrl,
-                creditBalance: Number(u.electricianProfile?.creditBalance ?? 0),
-                isVerified: u.isVerified,
-                isActive: u.isActive,
-                verificationStatus: u.electricianProfile?.verificationStatus ?? null,
-                completedJobsCount: u.electricianProfile?.completedJobsCount ?? 0,
-                serviceCategory: u.electricianProfile?.serviceCategory ?? null,
-                locations: u.locations || [],
+                ...u,
                 pushStatus: calculatedPushStatus,
-                createdAt: u.createdAt,
+                creditBalance: Number(u.creditBalance || 0),
+                completedJobsCount: Number(u.completedJobsCount || 0)
             };
-        });// Regional Distribution
+        });
+
+        // Pagination
+        const total = mapped.length;
+        const start = (Number(page) - 1) * Number(limit);
+        const paginated = mapped.slice(start, start + Number(limit));
+
+        res.json({
+            success: true,
+            data: {
+                users: paginated,
+                pagination: {
+                    total,
+                    page: Number(page),
+                    totalPages: Math.ceil(total / Number(limit))
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Admin get users error:', error);
+        res.status(500).json({ success: false, message: 'Kullanıcılar listelenirken hata oluştu' });
+    }
+});
+
+// GET /admin/stats - Get statistics
+router.get('/stats', authenticate, adminMiddleware, async (req: Request, res: Response) => {
+    try {
+        const allUsers = getAllMockUsers();
+        const usersWithType = Object.entries(allUsers).map(([id, data]: [string, any]) => {
+            let userType = data.userType || (id.endsWith('-ELECTRICIAN') ? 'ELECTRICIAN' : id.endsWith('-ADMIN') ? 'ADMIN' : 'CITIZEN');
+            return { ...data, id, userType };
+        });
+
+        const citizens = usersWithType.filter((u: any) => u.userType === 'CITIZEN');
+        const electricians = usersWithType.filter((u: any) => u.userType === 'ELECTRICIAN');
+
         const stats = {
-            // User Summary
             users: {
                 total: usersWithType.length,
                 citizens: citizens.length,
                 electricians: electricians.length,
                 admins: usersWithType.filter((u: any) => u.userType === 'ADMIN').length
             },
-            // Service Categories
-            serviceCategories,
-            // Status
-            status: {
-                verified: electricians.filter((u: any) => u.isVerified).length,
-                pending: usersWithType.filter((u: any) => u.verificationStatus === 'PENDING').length,
-                suspended: usersWithType.filter((u: any) => u.isActive === false).length
-            },
-            // Platform Activity
             activity: {
-                jobs: jobStats,
-                bids: bidStats,
-                totalCredits: Math.round(totalCredits)
-            },
-            // Regional Distribution
-            regions: topRegions
+                totalCredits: electricians.reduce((acc, u) => acc + Number(u.creditBalance || 0), 0)
+            }
         };
 
-        res.json({
-            success: true,
-            data: stats
-        });
+        res.json({ success: true, data: stats });
     } catch (error) {
-        console.error('Admin stats error:', error);
         res.status(500).json({ success: false, message: 'İstatistikler yüklenirken hata oluştu' });
     }
 });
 
-// GET /admin/verifications - Get all pending verifications
+router.get('/users/:id', authenticate, adminMiddleware, adminController.getUserDetails);
+router.put('/users/:id', authenticate, adminMiddleware, adminController.updateUser);
 router.get('/verifications', authenticate, adminMiddleware, adminController.getAllVerifications);
-
-// POST /admin/verifications/process - Approve/Reject verification
 router.post('/verifications/process', authenticate, adminMiddleware, adminController.processVerification);
-
-// GET /admin/dashboard-stats - Fast lookup for dashboard cards
 router.get('/dashboard-stats', authenticate, adminMiddleware, adminController.getDashboardStats);
-
-// GET /admin/jobs - Get all jobs for management
 router.get('/jobs', authenticate, adminMiddleware, adminController.getAllJobs);
-
-// DELETE /admin/jobs/:id - Force delete a job
 router.delete('/jobs/:id', authenticate, adminMiddleware, adminController.deleteJob);
-
-// POST /admin/promote - One-time admin promotion (secret endpoint)
-router.post('/promote', async (req: Request, res: Response) => {
-    try {
-        const { email, secret } = req.body;
-
-        // Security: Only works with the correct secret and specific email
-        if (secret !== 'isbitir-admin-2026' || email !== 'mpakdil0@gmail.com') {
-            return res.status(403).json({ success: false, message: 'Yetkisiz işlem' });
-        }
-
-        const { PrismaClient } = require('@prisma/client');
-        const prismaAdmin = new PrismaClient();
-
-        const user = await prismaAdmin.user.update({
-            where: { email },
-            data: { userType: 'ADMIN' }
-        });
-
-        await prismaAdmin.$disconnect();
-
-        console.log(`✅ User ${email} promoted to ADMIN`);
-        return res.json({ success: true, message: `${email} artık admin!`, userId: user.id });
-    } catch (error: any) {
-        console.error('Admin promote error:', error.message);
-        return res.status(500).json({ success: false, message: error.message });
-    }
-});
 
 export default router;

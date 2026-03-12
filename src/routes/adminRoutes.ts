@@ -192,6 +192,42 @@ router.get('/stats', authenticate, adminMiddleware, async (req: Request, res: Re
             totalCredits += Number(u.creditBalance) || 0;
         });
 
+        const mapped = dbUsers.map((u: any) => {
+            // Determine pushEnabled - more robust check
+            let isPushEnabled = true; // default
+            if (u.notificationSettings && typeof u.notificationSettings === 'object') {
+                const settings = u.notificationSettings as any;
+                if (settings.pushEnabled === false) {
+                    isPushEnabled = false;
+                }
+            }
+
+            // Determine final status
+            let calculatedPushStatus = 'DISABLED';
+            if (isPushEnabled) {
+                calculatedPushStatus = u.pushToken ? 'ACTIVE' : 'PENDING';
+            }
+
+            console.log(`User: ${u.fullName}, Token: ${!!u.pushToken}, Enabled: ${isPushEnabled}, Result: ${calculatedPushStatus}`);
+
+            return {
+                id: u.id,
+                fullName: u.fullName,
+                email: u.email,
+                phone: u.phone || '',
+                userType: u.userType,
+                profileImageUrl: u.profileImageUrl,
+                creditBalance: Number(u.electricianProfile?.creditBalance ?? 0),
+                isVerified: u.isVerified,
+                isActive: u.isActive,
+                verificationStatus: u.electricianProfile?.verificationStatus ?? null,
+                completedJobsCount: u.electricianProfile?.completedJobsCount ?? 0,
+                serviceCategory: u.electricianProfile?.serviceCategory ?? null,
+                locations: u.locations || [],
+                pushStatus: calculatedPushStatus,
+                createdAt: u.createdAt,
+            };
+        });// Regional Distribution
         const stats = {
             // User Summary
             users: {
